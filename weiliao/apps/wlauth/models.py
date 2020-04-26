@@ -1,9 +1,11 @@
 # -*- coding: utf-8 -*-
 # @Time: 2020/4/24 15:53
 # @Author: ZhangRui
-from django.contrib.auth.models import AbstractBaseUser, BaseUserManager
+from django.contrib.auth.models import AbstractBaseUser, BaseUserManager, \
+    PermissionsMixin
 from django.db import models
 from django.core.validators import MinLengthValidator, RegexValidator
+from django.urls import resolve
 from shortuuidfield import ShortUUIDField
 
 
@@ -45,7 +47,47 @@ class WLUserManage(BaseUserManager):
                                  **extra_fields)
 
 
-class WLUser(AbstractBaseUser):
+class WLPermissionsMixin:
+
+    def get_all_permissions(self):
+        return self.get_group_permissions().union(self.get_user_permissions())
+
+    def get_user_permissions(self):
+        permissions = set(self.permissions.all())
+        return permissions
+
+    def get_group_permissions(self):
+        permissions = set()
+        groups = self.groups.prefetch_related('permissions')
+        for group in groups:
+            for permission in group.permissions.all():
+                permissions.add(permission)
+        return permissions
+
+    def _has_permissions(self, namespace, url_name, describe):
+        print(namespace, url_name, describe)
+        permission = WLPermissions.objects.get(namespace=namespace,
+                                               url_name=url_name,
+                                               describe=describe)
+        return permission in self.get_all_permissions()
+
+    def has_permissions(self, request, describe):
+        rm = resolve(request.path)
+        namespace = rm.namespace
+        url_name = rm.url_name
+        return self._has_permissions(namespace, url_name, describe)
+
+    def has_write_permission(self, request):
+        return self.has_permissions(request, WLPermissions.WRITE_PERMISSION)
+
+    def has_read_permission(self, request):
+        return self.has_permissions(request, WLPermissions.READ_PERMISSION)
+
+    def has_update_permission(self, request):
+        return self.has_permissions(request, WLPermissions.UPDATE_PERMISSION)
+
+
+class WLUser(AbstractBaseUser, WLPermissionsMixin):
     uid = ShortUUIDField(primary_key=True, verbose_name='主键')
     nickname = models.CharField(max_length=50,
                                 validators=(MinLengthValidator(limit_value=1),),
@@ -63,10 +105,11 @@ class WLUser(AbstractBaseUser):
     is_staff = models.BooleanField(default=False, verbose_name='是否是管理员')
     time_joined = models.DateTimeField(auto_now_add=True, verbose_name='加入时间')
     avatar = models.URLField(null=False, blank=True, verbose_name='头像')
-
+    is_superuser = models.BooleanField(default=False, null=False, blank=False,
+                                       verbose_name='是否为超级管理员')
     EMAIL_FIELD = 'email'
     USERNAME_FIELD = 'uid'
-    REQUIRED_FIELDS = ['email', 'telephone']
+    REQUIRED_FIELDS = ['email', 'telephone', 'nickname', 'doc']
     objects = WLUserManage()
 
     class Meta:
@@ -86,23 +129,30 @@ class WLPermissions(models.Model):
     WRITE_PERMISSION = 2
     UPDATE_PERMISSION = 3
 
-    describes = (
+    DESCRIBES = (
         (READ_PERMISSION, 'read'),
         (WRITE_PERMISSION, 'write'),
         (UPDATE_PERMISSION, 'update')
     )
 
-    path = models.CharField(max_length=100, unique=True, null=False,
-                            blank=False, verbose_name='路由')
-    describe = models.SmallIntegerField(choices=describes, verbose_name='权限描述',
+    url_name = models.CharField(max_length=100, null=False, blank=False,
+                                verbose_name='路由名')
+    namespace = models.CharField(max_length=100, null=False, blank=False,
+                                 verbose_name='实例命名空间')
+    describe = models.SmallIntegerField(choices=DESCRIBES, verbose_name='权限类型',
                                         null=False, blank=False)
     users = models.ManyToManyField(WLUser, related_name='permissions',
                                    verbose_name='关联用户')
+
+    # details = models.CharField(max_length=255, null=False, blank=True,
+    #                            default="", verbose_name='权限描述文字')
 
     class Meta:
         db_table = 'wlpermissions'
         verbose_name = '用户表'
         verbose_name_plural = verbose_name
+        unique_together = ('url_name', 'namespace', 'describe')
+        index_together = ('url_name', 'namespace', 'describe')
 
 
 class WLGroup(models.Model):

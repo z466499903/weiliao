@@ -9,8 +9,9 @@ https://docs.djangoproject.com/en/3.0/topics/settings/
 For the full list of settings and their values, see
 https://docs.djangoproject.com/en/3.0/ref/settings/
 """
-
+import time
 import environ
+
 BASE_DIR = environ.Path(__file__) - 3
 APPS_DIR = BASE_DIR.path('apps')  # media, static, staticfiles的文件路径
 env = environ.Env()
@@ -25,10 +26,11 @@ DJANGO_APPS = [
 ]
 
 AUTO_DISCOVER_EXCLUDE = [
-    r'/__debug__.*'
+    r'/__debug__.*',
 ]
 
 THIRD_PARTY_APPS = [
+    'rest_framework',
 ]
 
 LOCAL_APPS = [
@@ -67,16 +69,8 @@ TEMPLATES = [
     },
 ]
 
-PASSWORD_HASHERS = [
-    # https://docs.djangoproject.com/en/dev/topics/auth/passwords/#using-argon2-with-django
-    'django.contrib.auth.hashers.Argon2PasswordHasher',
-    'django.contrib.auth.hashers.PBKDF2PasswordHasher',
-    'django.contrib.auth.hashers.PBKDF2SHA1PasswordHasher',
-    'django.contrib.auth.hashers.BCryptSHA256PasswordHasher',
-    'django.contrib.auth.hashers.BCryptPasswordHasher',
-]
 
-WSGI_APPLICATION = 'config.wsgi.application'
+ASGI_APPLICATION = 'config.asgi.application'
 AUTH_PASSWORD_VALIDATORS = [
     {
         'NAME': 'django.contrib.auth.password_validation.UserAttributeSimilarityValidator',
@@ -124,4 +118,24 @@ STATICFILES_DIRS = [  # 静态文件路径
 STATICFILES_FINDERS = [
     'django.contrib.staticfiles.finders.FileSystemFinder',
     'django.contrib.staticfiles.finders.AppDirectoriesFinder',
+]
+
+
+# jwt载荷中的有效期设置
+JWT_AUTH = {
+    #token 有效期
+    'JWT_EXPIRATION_DELTA': int(time.time()) + 60 * 60 * 24 * 7
+}
+
+# 跨域请求的域名
+CORS_ORIGIN_WHITELIST = [
+    "http://localhost:8080",
+    "http://localhost:8081",
+]
+# 跨域请求的方式
+CORS_ALLOW_METHODS = [
+    'DELETE',
+    'GET',
+    'POST',
+    'PUT',
 ]

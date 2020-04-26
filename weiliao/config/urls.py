@@ -16,7 +16,7 @@ Including another URLconf
 from django.urls import include,path
 from django.conf import settings
 urlpatterns = [
-    path("",include('apps.wlauth.urls'))
+    path("auth/",include('apps.wlauth.urls'))
 ]
 
 if settings.DEBUG:
